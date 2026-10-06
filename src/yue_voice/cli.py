@@ -76,7 +76,7 @@ def _add_common_options(parser: argparse.ArgumentParser) -> None:
     reference_text.add_argument("--ref-text-file", type=Path, help="UTF-8 reference transcript for clone mode")
     parser.add_argument("--instruct", help="Voice-design instruction for design mode")
     parser.add_argument("--seed", type=int, help="Initial random seed; later attempts increment it")
-    parser.add_argument("--max-attempts", type=int, default=10)
+    parser.add_argument("--max-attempts", type=int, default=5)
     parser.add_argument("--keep-candidates", action="store_true")
     parser.add_argument("--num-step", type=int, default=32)
     parser.add_argument("--guidance-scale", type=float, default=2.0)

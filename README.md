@@ -10,7 +10,7 @@
 - `text` 是實際送進 OmniVoice 的**合成文本**。可選的 `expected_transcription` 是 CER 的**驗收目標**；缺省時才回退為 `text`。
 - 正規化會做 Unicode NFKC、大小寫一致化，並忽略空白、標點與完整 emoji sequence；驗收目標會以 OpenCC `t2s` 轉成簡體後比較。ASR 轉寫則維持其輸出的漢字形式。
 - 只有 CER **嚴格小於 5%** 的候選才是 `accepted: true`。同音字仍算差異。
-- 最多嘗試 10 次。全部不達標時會輸出 CER 最低的 best-effort WAV，但標記 `accepted: false`；CLI 預設以非零狀態結束。
+- 預設嘗試 5 次；可用 `--max-attempts` 設為 1 至 10 次。全部不達標時會輸出 CER 最低的 best-effort WAV，但標記 `accepted: false`；CLI 預設以非零狀態結束。
 - 每次嘗試會改變 Python／Torch 隨機 seed，並比對 WAV SHA-256；若生成出重複音訊，會記錄原因並停止，不會假裝重試十次。
 
 ## 安裝
@@ -112,21 +112,21 @@ uv run yue-voice benchmark --text-file sample.txt --artifact-dir artifacts
 
 - 執行時間：2026-10-06；Python 3.13.12；依賴由此 repo 的 `uv.lock` 鎖定。
 - 模型：`k2-fsa/OmniVoice`、`iic/SenseVoiceSmall`；TTS 與 ASR 都實際使用 `mps`。
-- 指令：`uv run yue-voice benchmark --corpus benchmarks/cantonese.jsonl --seed 20261006 --artifact-dir artifacts`。
-- 語料：24 段；每段最多 10 次；總耗時 374.82 秒（約 6 分 15 秒）。
-- 原始、逐 case 結果位於 Git ignore 的 `artifacts/benchmark-20261006T101446300424Z/report.json` 與 `report.md`。
+- 指令：`uv run yue-voice benchmark --corpus benchmarks/cantonese.jsonl --seed 20261006 --max-attempts 10 --artifact-dir artifacts`。
+- 語料：24 段；每段最多 10 次；總耗時 440.84 秒（約 7 分 21 秒）。
+- 原始、逐 case 結果位於 Git ignore 的 `artifacts/benchmark-20261006T102527954808Z/report.json` 與 `report.md`。
 
 | Metric | 單純生成（第 1 候選） | 校驗生成（最多 10 次） |
 | --- | ---: | ---: |
-| 平均 T2S-normalized CER | 4.80% | **2.57%** |
-| 相對 CER 改善 | — | **46.47%** |
-| `< 5%` 達標率 | 15/24（62.50%） | 18/24（75.00%） |
-| 平均嘗試次數 | 1.00 | 3.67 |
-| 平均每段時間 | — | 15.62 秒 |
+| 平均 T2S-normalized CER | 4.69% | **2.46%** |
+| 相對 CER 改善 | — | **47.61%** |
+| `< 5%` 達標率 | 16/24（66.67%） | 19/24（79.17%） |
+| 平均嘗試次數 | 1.00 | 3.29 |
+| 平均每段時間 | — | 18.37 秒 |
 
-在相同的 24 段、相同的第 1 候選起點下，閉環把平均 CER 降低 2.23 個百分點，並多讓 3 段達到門檻。6 段仍未達標時，輸出會保留為明確標示 `accepted: false` 的 best-effort，不會被偽稱為已校驗成功。
+在相同的 24 段、相同的第 1 候選起點下，閉環把平均 CER 降低 2.23 個百分點，並多讓 3 段達到門檻。5 段仍未達標時，輸出會保留為明確標示 `accepted: false` 的 best-effort，不會被偽稱為已校驗成功。
 
-`sample-002` 是替代字 contract 的實際案例：TTS 朗讀「節劍」，但 24 段測評以「節儉」驗收；其 baseline 及最佳 CER 都是 5.56%，未達門檻。這證明系統不會把替代字本身誤當作成功目標。
+`sample-002` 是替代字 contract 的實際案例：TTS 朗讀「節劍」，但以「節儉」及目前 JSONL 的其餘 expected target 字詞驗收；其 baseline 和最佳 CER 均為 2.78%，成功達標。這證明系統按 explicit target 驗收，而不是自動把合成文本當作唯一標準。
 
 ## 模型、快取與清理
 
