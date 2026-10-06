@@ -5,6 +5,8 @@ __pycache__/
 
 # Generated or private audio material
 artifacts/
+# Superseded local exploration; production code lives under src/yue_voice/.
+draft.py
 references/*
 !references/.gitkeep
 

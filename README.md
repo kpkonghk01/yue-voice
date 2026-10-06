@@ -68,7 +68,7 @@ uv run yue-voice generate \
 
 ## Benchmark
 
-版本控制的 `benchmarks/cantonese.jsonl` 有 24 段公開、原創的粵語測例，當中包含由 `sample.txt` 以空行拆出的三個非空段落。執行：
+版本控制的 `benchmarks/cantonese.jsonl` 有 24 段粵語測例，當中包含由可提交的 `sample.txt` 以空行拆出的三個非空段落。執行：
 
 ```sh
 uv run yue-voice benchmark --corpus benchmarks/cantonese.jsonl --artifact-dir artifacts
@@ -84,7 +84,25 @@ uv run yue-voice benchmark --text-file sample.txt --artifact-dir artifacts
 
 ## 實測結果
 
-首次實測將在本機完成 OmniVoice 與 SenseVoiceSmall 模型下載後寫入本節。報告會列明 Python／套件鎖檔、TTS 與 ASR 模型 ID、裝置、語料數與產出的 artifact 路徑；在未取得該報告前，本 README 不會虛構準確率或速度數字。
+以下是已在本機完成的真實 baseline vs 閉環測評，不是上游模型宣稱的 benchmark：
+
+- 執行時間：2026-10-06；Python 3.13.12；依賴由此 repo 的 `uv.lock` 鎖定。
+- 模型：`k2-fsa/OmniVoice`、`iic/SenseVoiceSmall`；TTS 與 ASR 都實際使用 `mps`。
+- 指令：`uv run yue-voice benchmark --corpus benchmarks/cantonese.jsonl --seed 20261006 --artifact-dir artifacts`。
+- 語料：24 段；每段最多 10 次；總耗時 1,055.21 秒（約 17 分 35 秒）。
+- 原始、逐 case 結果位於 Git ignore 的 `artifacts/benchmark-20261006T085215665309Z/report.json` 與 `report.md`。
+
+| Metric | 單純生成（第 1 候選） | 校驗生成（最多 10 次） |
+| --- | ---: | ---: |
+| 平均嚴格 CER | 31.86% | **29.00%** |
+| 相對 CER 改善 | — | **8.95%** |
+| `< 5%` 達標率 | 0/24（0.00%） | 0/24（0.00%） |
+| 平均嘗試次數 | 1.00 | 10.00 |
+| 平均每段時間 | — | 43.97 秒 |
+
+閉環在此語料把平均**嚴格** CER 降低了 2.85 個百分點，但仍沒有接受任何輸出，所以所有最終 WAV 都是明確標示 `accepted: false` 的 best-effort。主要限制不是工具把 fallback 當成功，而是 SenseVoice 常以簡體轉寫繁體原文（例如「天氣／幾」變成「天气／几」）；在目前選定的嚴格比較策略下，這些字形差異必定計錯。
+
+因此，這份結果證明閉環與稽核資料正常運作，但尚未證明工具能在繁體粵語文本上穩定達到 5%。若業務上要把繁簡視為正確，下一步應加入已討論、具獨立名稱與版本的繁簡等價 comparator，再重新跑相同語料；不要以修改或覆寫這份 strict-CER 結果來達標。
 
 ## 模型、快取與清理
 
