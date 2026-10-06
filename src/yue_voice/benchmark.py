@@ -19,9 +19,9 @@ class BenchmarkError(ValueError):
     """Raised when a benchmark corpus cannot produce valid paragraph cases."""
 
 
-def load_jsonl_cases(path: Path) -> list[dict[str, str]]:
-    """Load public benchmark cases from UTF-8 JSON Lines."""
-    cases: list[dict[str, str]] = []
+def load_jsonl_cases(path: Path) -> list[dict[str, str | None]]:
+    """Load cases with optional expected_transcription targets from UTF-8 JSONL."""
+    cases: list[dict[str, str | None]] = []
     for line_number, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         if not raw_line.strip():
             continue
@@ -31,19 +31,26 @@ def load_jsonl_cases(path: Path) -> list[dict[str, str]]:
             raise BenchmarkError(f"invalid JSON on line {line_number} of {path}: {error.msg}") from error
         case_id = str(item.get("id", "")).strip()
         text = str(item.get("text", "")).strip()
+        expected = item.get("expected_transcription")
+        if expected is not None:
+            if not isinstance(expected, str) or not expected.strip():
+                raise BenchmarkError(
+                    f"expected_transcription on line {line_number} must be a non-empty string"
+                )
+            expected = expected.strip()
         if not case_id or not text:
             raise BenchmarkError(f"case on line {line_number} needs non-empty id and text")
-        cases.append({"id": case_id, "text": text})
+        cases.append({"id": case_id, "text": text, "expected_transcription": expected})
     if not cases:
         raise BenchmarkError(f"no non-empty cases found in {path}")
     return cases
 
 
-def load_paragraph_cases(path: Path) -> list[dict[str, str]]:
+def load_paragraph_cases(path: Path) -> list[dict[str, str | None]]:
     """Split a local text file on blank lines and omit empty paragraphs."""
     paragraphs = re.split(r"\r?\n[\t ]*\r?\n", path.read_text(encoding="utf-8"))
     cases = [
-        {"id": f"{path.stem}-{index:03d}", "text": paragraph.strip()}
+        {"id": f"{path.stem}-{index:03d}", "text": paragraph.strip(), "expected_transcription": None}
         for index, paragraph in enumerate(paragraphs, start=1)
         if paragraph.strip()
     ]
@@ -54,7 +61,7 @@ def load_paragraph_cases(path: Path) -> list[dict[str, str]]:
 
 def run_benchmark(
     generator: ClosedLoopGenerator,
-    cases: list[dict[str, str]],
+    cases: list[dict[str, str | None]],
     template: SynthesisRequest,
     *,
     artifact_root: Path | str = Path("artifacts"),
@@ -70,7 +77,8 @@ def run_benchmark(
     for index, case in enumerate(cases):
         request = replace(
             template,
-            text=case["text"],
+            text=str(case["text"]),
+            expected_transcription=case["expected_transcription"],
             seed=(template.seed + index * 100) if template.seed is not None else None,
         )
         result = generator.generate(
@@ -78,13 +86,14 @@ def run_benchmark(
             artifact_root=benchmark_directory / "runs",
             keep_candidates=keep_candidates,
         )
-        records.append(_record_case(case["id"], result))
+        records.append(_record_case(str(case["id"]), result))
 
     report = {
         "benchmark_id": benchmark_id,
         "generated_at": datetime.now(UTC).isoformat(),
         "definition": {
             "baseline": "The first candidate in each closed loop before verification selection.",
+            "verification_target": "expected_transcription when supplied; otherwise synthesis text.",
             "verified": "The candidate selected by T2S-normalized CER verification after at most ten attempts.",
         },
         "case_count": len(records),
@@ -103,6 +112,9 @@ def _record_case(case_id: str, result: GenerationResult) -> dict[str, Any]:
     baseline = result.attempts[0] if result.attempts else None
     return {
         "id": case_id,
+        "synthesis_text": result.synthesis_text,
+        "expected_transcription": result.expected_transcription,
+        "verification_target": result.expected_transcription or result.synthesis_text,
         "baseline_cer": baseline.cer if baseline else None,
         "baseline_accepted": baseline.accepted if baseline else False,
         "verified_cer": result.selected_cer,
@@ -135,6 +147,10 @@ def _rate(records: list[dict[str, Any]], key: str) -> float:
     return sum(bool(record[key]) for record in records) / len(records) if records else 0.0
 
 
+def _markdown_cell(value: str | None) -> str:
+    return (value or "").replace("|", "\\|").replace("\n", " ")
+
+
 def _render_markdown(report: dict[str, Any]) -> str:
     summary = report["summary"]
     percent = lambda value: "N/A" if value is None else f"{value:.2%}"
@@ -145,6 +161,7 @@ def _render_markdown(report: dict[str, Any]) -> str:
         f"- Benchmark: `{report['benchmark_id']}`",
         f"- Cases: {report['case_count']}",
         "- Baseline: first candidate before closed-loop selection.",
+        "- Verification target: expected transcription when supplied; otherwise synthesis text.",
         "- Verified: selected candidate after T2S-normalized CER checks, limited to ten attempts.",
         "",
         "| Metric | Baseline | Verified |",
@@ -155,13 +172,15 @@ def _render_markdown(report: dict[str, Any]) -> str:
         f"Mean attempts: {decimal(summary['mean_attempts'])}  ",
         f"Mean case time: {decimal(summary['mean_case_seconds'])} seconds",
         "",
-        "| Case | Baseline CER | Verified CER | Attempts | Selected attempt | Accepted |",
-        "| --- | ---: | ---: | ---: | ---: | --- |",
+        "| Case | Synthesis text | Verification target | Baseline CER | Verified CER | Attempts | Selected attempt | Accepted |",
+        "| --- | --- | --- | ---: | ---: | ---: | ---: | --- |",
     ]
     for record in report["cases"]:
         rows.append(
-            "| {id} | {baseline} | {verified} | {attempts} | {selected} | {accepted} |".format(
+            "| {id} | {synthesis_text} | {verification_target} | {baseline} | {verified} | {attempts} | {selected} | {accepted} |".format(
                 id=record["id"],
+                synthesis_text=_markdown_cell(record["synthesis_text"]),
+                verification_target=_markdown_cell(record["verification_target"]),
                 baseline=percent(record["baseline_cer"]),
                 verified=percent(record["verified_cer"]),
                 attempts=record["attempt_count"],

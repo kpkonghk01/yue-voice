@@ -19,7 +19,7 @@ from .text import compare_strict_cer, normalize_source_for_cer
 
 
 class ClosedLoopGenerator:
-    """Generate and verify a paragraph without ever silently accepting a fallback."""
+    """Generate from synthesis text and verify against its independent target."""
 
     def __init__(
         self,
@@ -40,7 +40,8 @@ class ClosedLoopGenerator:
         keep_candidates: bool = False,
     ) -> GenerationResult:
         """Run at most ten verified attempts and persist the selected outcome."""
-        length_units = request.validate()
+        text_lengths = request.validate()
+        verification_target = request.verification_target
         started = time.monotonic()
         run_id = self._run_id()
         run_directory = Path(artifact_root).expanduser().resolve() / run_id
@@ -78,7 +79,7 @@ class ClosedLoopGenerator:
                 verification_started = time.monotonic()
                 attempt.transcription = self._verifier.transcribe(candidate_path)
                 attempt.verification_seconds = time.monotonic() - verification_started
-                comparison = compare_strict_cer(request.text, attempt.transcription)
+                comparison = compare_strict_cer(verification_target, attempt.transcription)
                 attempt.normalized_transcription = comparison.normalized_transcription
                 attempt.cer = comparison.cer
                 attempt.accepted = comparison.cer < request.cer_threshold
@@ -102,16 +103,17 @@ class ClosedLoopGenerator:
             shutil.rmtree(candidate_directory)
         elif candidate_directory.exists():
             for attempt in attempts:
-                if attempt.number <= request.max_attempts:
-                    path = candidate_directory / f"attempt-{attempt.number:02d}.wav"
-                    if path.is_file():
-                        attempt.candidate_path = path
+                path = candidate_directory / f"attempt-{attempt.number:02d}.wav"
+                if path.is_file():
+                    attempt.candidate_path = path
 
         result = GenerationResult(
             run_id=run_id,
-            requested_text=request.text,
-            normalized_source=normalize_source_for_cer(request.text),
-            length_units=length_units,
+            synthesis_text=request.text,
+            expected_transcription=request.expected_transcription,
+            normalized_source=normalize_source_for_cer(verification_target),
+            synthesis_length_units=text_lengths.synthesis_text,
+            verification_target_length_units=text_lengths.verification_target,
             cer_threshold=request.cer_threshold,
             max_attempts=request.max_attempts,
             accepted=accepted_attempt is not None,

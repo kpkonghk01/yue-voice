@@ -56,10 +56,19 @@ class GenerationControls:
 
 
 @dataclass(frozen=True, slots=True)
+class TextLengthUnits:
+    """Validated lengths for TTS input and its independent verification target."""
+
+    synthesis_text: float
+    verification_target: float
+
+
+@dataclass(frozen=True, slots=True)
 class SynthesisRequest:
     """One paragraph synthesis request and its bounded verification policy."""
 
     text: str
+    expected_transcription: str | None = None
     voice_mode: VoiceMode = VoiceMode.AUTO
     reference_audio: Path | None = None
     reference_text: str | None = None
@@ -69,19 +78,17 @@ class SynthesisRequest:
     max_attempts: int = MAX_ATTEMPTS
     cer_threshold: float = STRICT_CER_THRESHOLD
 
-    def validate(self) -> int:
-        """Validate this request and return its Chinese-character-equivalent size."""
-        if not self.text.strip():
-            raise ValueError("text must contain at least one non-whitespace character")
+    @property
+    def verification_target(self) -> str:
+        """Return the expected target, falling back to the text supplied to TTS."""
+        return self.expected_transcription if self.expected_transcription is not None else self.text
 
-        length_units = chinese_equivalent_units(self.text)
-        if length_units == 0:
-            raise ValueError("text must contain letters, digits, or Han characters")
-        if length_units > MAX_PARAGRAPH_UNITS:
-            raise ValueError(
-                f"paragraph is {length_units:g} Chinese-character equivalents; "
-                f"the maximum is {MAX_PARAGRAPH_UNITS}"
-            )
+    def validate(self) -> TextLengthUnits:
+        """Validate both texts and return their Chinese-character-equivalent lengths."""
+        synthesis_length = self._validate_paragraph("text", self.text)
+        verification_length = self._validate_paragraph(
+            "expected_transcription", self.verification_target
+        )
 
         if not 1 <= self.max_attempts <= MAX_ATTEMPTS:
             raise ValueError(f"max_attempts must be between 1 and {MAX_ATTEMPTS}")
@@ -106,6 +113,24 @@ class SynthesisRequest:
             if self.reference_audio or self.reference_text:
                 raise ValueError("design mode does not accept reference audio or text")
 
+        return TextLengthUnits(
+            synthesis_text=synthesis_length,
+            verification_target=verification_length,
+        )
+
+    @staticmethod
+    def _validate_paragraph(field_name: str, text: str) -> float:
+        if not text.strip():
+            raise ValueError(f"{field_name} must contain at least one non-whitespace character")
+
+        length_units = chinese_equivalent_units(text)
+        if length_units == 0:
+            raise ValueError(f"{field_name} must contain letters, digits, or Han characters")
+        if length_units > MAX_PARAGRAPH_UNITS:
+            raise ValueError(
+                f"{field_name} is {length_units:g} Chinese-character equivalents; "
+                f"the maximum is {MAX_PARAGRAPH_UNITS}"
+            )
         return length_units
 
 
@@ -146,9 +171,11 @@ class GenerationResult:
     """The final closed-loop outcome plus auditable per-attempt evidence."""
 
     run_id: str
-    requested_text: str
+    synthesis_text: str
+    expected_transcription: str | None
     normalized_source: str
-    length_units: float
+    synthesis_length_units: float
+    verification_target_length_units: float
     cer_threshold: float
     max_attempts: int
     accepted: bool
@@ -167,9 +194,11 @@ class GenerationResult:
     def as_dict(self) -> dict[str, Any]:
         return {
             "run_id": self.run_id,
-            "requested_text": self.requested_text,
+            "synthesis_text": self.synthesis_text,
+            "expected_transcription": self.expected_transcription,
             "normalized_source": self.normalized_source,
-            "length_units": self.length_units,
+            "synthesis_length_units": self.synthesis_length_units,
+            "verification_target_length_units": self.verification_target_length_units,
             "cer_threshold": self.cer_threshold,
             "max_attempts": self.max_attempts,
             "accepted": self.accepted,

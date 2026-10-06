@@ -32,6 +32,16 @@ def build_parser() -> argparse.ArgumentParser:
     source = generate_parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--text", help="One Cantonese paragraph to synthesize")
     source.add_argument("--text-file", type=Path, help="UTF-8 file containing one paragraph")
+    expected = generate_parser.add_mutually_exclusive_group()
+    expected.add_argument(
+        "--expected-text",
+        help="Optional CER verification target; it is not sent to the TTS model",
+    )
+    expected.add_argument(
+        "--expected-text-file",
+        type=Path,
+        help="UTF-8 file containing the optional CER verification target",
+    )
     generate_parser.add_argument(
         "--allow-best-effort",
         action="store_true",
@@ -89,6 +99,12 @@ def _read_utf8(path: Path) -> str:
 
 def _request_from_args(args: argparse.Namespace, text: str) -> SynthesisRequest:
     reference_text = _read_utf8(args.ref_text_file) if args.ref_text_file else args.ref_text
+    expected_text_file = getattr(args, "expected_text_file", None)
+    expected_transcription = (
+        _read_utf8(expected_text_file)
+        if expected_text_file
+        else getattr(args, "expected_text", None)
+    )
     controls = GenerationControls(
         num_step=args.num_step,
         guidance_scale=args.guidance_scale,
@@ -103,6 +119,7 @@ def _request_from_args(args: argparse.Namespace, text: str) -> SynthesisRequest:
     )
     return SynthesisRequest(
         text=text,
+        expected_transcription=expected_transcription,
         voice_mode=VoiceMode(args.mode),
         reference_audio=args.ref_audio,
         reference_text=reference_text,
@@ -149,7 +166,7 @@ def run(argv: Sequence[str] | None = None) -> int:
             corpus_path = args.corpus or DEFAULT_CORPUS
             cases = load_jsonl_cases(corpus_path)
             source = str(corpus_path)
-        template = _request_from_args(args, cases[0]["text"])
+        template = _request_from_args(args, str(cases[0]["text"]))
         report, report_path, markdown_path = run_benchmark(
             generator,
             cases,
