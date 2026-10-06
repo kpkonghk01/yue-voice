@@ -1,14 +1,15 @@
-"""Strict text normalization, comparison, and paragraph-length measurement."""
+"""CER normalization, comparison, and paragraph-length measurement."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 import unicodedata
 
 
 @dataclass(frozen=True, slots=True)
 class TextComparison:
-    """The strict-CER comparison result for a source and ASR transcript."""
+    """The T2S-normalized CER comparison result for a source and ASR transcript."""
 
     normalized_source: str
     normalized_transcription: str
@@ -16,14 +17,42 @@ class TextComparison:
     cer: float
 
 
+def _is_emoji_component(character: str) -> bool:
+    """Identify emoji code points and the joiners/modifiers that compose them."""
+    codepoint = ord(character)
+    return (
+        0x1F000 <= codepoint <= 0x1FAFF
+        or 0x2600 <= codepoint <= 0x27BF
+        or 0x2300 <= codepoint <= 0x23FF
+        or 0x2B00 <= codepoint <= 0x2BFF
+        or codepoint in {0x00A9, 0x00AE, 0x203C, 0x2049, 0x2122, 0x2139, 0x3030, 0x303D, 0x3297, 0x3299}
+        or codepoint in {0x200D, 0x20E3, 0xFE0E, 0xFE0F}
+        or 0xE0020 <= codepoint <= 0xE007F
+    )
+
+
 def normalize_for_strict_cer(text: str) -> str:
-    """Normalize case and width while ignoring whitespace and punctuation only."""
+    """Normalize text while ignoring punctuation, whitespace, and emoji components."""
     normalized = unicodedata.normalize("NFKC", text).casefold()
     return "".join(
         character
         for character in normalized
         if not unicodedata.category(character).startswith(("P", "Z"))
+        and not _is_emoji_component(character)
     )
+
+
+@lru_cache(maxsize=1)
+def _traditional_to_simplified_converter():
+    """Load one process-wide OpenCC Traditional-to-Simplified converter."""
+    from opencc import OpenCC
+
+    return OpenCC("t2s")
+
+
+def normalize_source_for_cer(text: str) -> str:
+    """Normalize a requested paragraph and convert its Han text to simplified Chinese."""
+    return _traditional_to_simplified_converter().convert(normalize_for_strict_cer(text))
 
 
 def _is_han(character: str) -> bool:
@@ -82,11 +111,11 @@ def levenshtein_distance(source: str, target: str) -> int:
 
 
 def compare_strict_cer(source: str, transcription: str) -> TextComparison:
-    """Compare source and transcription using the project's strict-CER policy."""
-    normalized_source = normalize_for_strict_cer(source)
+    """Compare text with T2S-normalized source and emoji-free ASR transcription."""
+    normalized_source = normalize_source_for_cer(source)
     normalized_transcription = normalize_for_strict_cer(transcription)
     if not normalized_source:
-        raise ValueError("source text is empty after strict-CER normalization")
+        raise ValueError("source text is empty after CER normalization")
 
     distance = levenshtein_distance(normalized_source, normalized_transcription)
     return TextComparison(

@@ -15,7 +15,7 @@ import soundfile as sound_file
 
 from .engines import OmniVoiceSynthesizer, SenseVoiceVerifier, seed_everything
 from .models import AttemptRecord, GenerationResult, SynthesisRequest
-from .text import compare_strict_cer, normalize_for_strict_cer
+from .text import compare_strict_cer, normalize_source_for_cer
 
 
 class ClosedLoopGenerator:
@@ -110,7 +110,7 @@ class ClosedLoopGenerator:
         result = GenerationResult(
             run_id=run_id,
             requested_text=request.text,
-            normalized_source=normalize_for_strict_cer(request.text),
+            normalized_source=normalize_source_for_cer(request.text),
             length_units=length_units,
             cer_threshold=request.cer_threshold,
             max_attempts=request.max_attempts,

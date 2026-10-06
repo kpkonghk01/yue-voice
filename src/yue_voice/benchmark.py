@@ -85,7 +85,7 @@ def run_benchmark(
         "generated_at": datetime.now(UTC).isoformat(),
         "definition": {
             "baseline": "The first candidate in each closed loop before verification selection.",
-            "verified": "The candidate selected by strict CER verification after at most ten attempts.",
+            "verified": "The candidate selected by T2S-normalized CER verification after at most ten attempts.",
         },
         "case_count": len(records),
         "summary": _summarize(records),
@@ -145,7 +145,7 @@ def _render_markdown(report: dict[str, Any]) -> str:
         f"- Benchmark: `{report['benchmark_id']}`",
         f"- Cases: {report['case_count']}",
         "- Baseline: first candidate before closed-loop selection.",
-        "- Verified: selected candidate after strict CER checks, limited to ten attempts.",
+        "- Verified: selected candidate after T2S-normalized CER checks, limited to ten attempts.",
         "",
         "| Metric | Baseline | Verified |",
         "| --- | ---: | ---: |",
