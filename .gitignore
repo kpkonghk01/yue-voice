@@ -1,0 +1,16 @@
+# Python and uv
+.venv/
+__pycache__/
+*.py[cod]
+
+# Generated or private audio material
+artifacts/
+references/*
+!references/.gitkeep
+
+# Build and local tooling artifacts
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.DS_Store
