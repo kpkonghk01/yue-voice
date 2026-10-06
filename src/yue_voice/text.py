@@ -18,22 +18,51 @@ class TextComparison:
 
 
 def _is_emoji_component(character: str) -> bool:
-    """Identify emoji code points and the joiners/modifiers that compose them."""
+    """Identify emoji code points plus joiners, selectors, and tag components."""
     codepoint = ord(character)
     return (
         0x1F000 <= codepoint <= 0x1FAFF
         or 0x2600 <= codepoint <= 0x27BF
         or 0x2300 <= codepoint <= 0x23FF
         or 0x2B00 <= codepoint <= 0x2BFF
-        or codepoint in {0x00A9, 0x00AE, 0x203C, 0x2049, 0x2122, 0x2139, 0x3030, 0x303D, 0x3297, 0x3299}
+        or codepoint
+        in {0x00A9, 0x00AE, 0x203C, 0x2049, 0x2122, 0x2139, 0x3030, 0x303D, 0x3297, 0x3299}
         or codepoint in {0x200D, 0x20E3, 0xFE0E, 0xFE0F}
         or 0xE0020 <= codepoint <= 0xE007F
     )
 
 
+def _is_keycap_sequence(text: str, index: int) -> bool:
+    """Recognize ASCII keycap emoji before NFKC can turn it into plain text."""
+    if text[index] not in "#*0123456789":
+        return False
+    next_index = index + 1
+    if next_index < len(text) and ord(text[next_index]) in {0xFE0E, 0xFE0F}:
+        next_index += 1
+    return next_index < len(text) and ord(text[next_index]) == 0x20E3
+
+
+def _strip_emoji_sequences(text: str) -> str:
+    """Remove complete known emoji sequences before compatibility normalization."""
+    kept: list[str] = []
+    index = 0
+    while index < len(text):
+        if _is_keycap_sequence(text, index):
+            index += 2
+            if index < len(text) and ord(text[index - 1]) in {0xFE0E, 0xFE0F}:
+                index += 1
+            continue
+        if _is_emoji_component(text[index]):
+            index += 1
+            continue
+        kept.append(text[index])
+        index += 1
+    return "".join(kept)
+
+
 def normalize_for_strict_cer(text: str) -> str:
-    """Normalize text while ignoring punctuation, whitespace, and emoji components."""
-    normalized = unicodedata.normalize("NFKC", text).casefold()
+    """Normalize text while ignoring punctuation, whitespace, and emoji sequences."""
+    normalized = unicodedata.normalize("NFKC", _strip_emoji_sequences(text)).casefold()
     return "".join(
         character
         for character in normalized

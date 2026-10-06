@@ -150,7 +150,7 @@ def _render_markdown(report: dict[str, Any]) -> str:
         "| Metric | Baseline | Verified |",
         "| --- | ---: | ---: |",
         f"| Mean CER | {percent(summary['baseline_mean_cer'])} | {percent(summary['verified_mean_cer'])} |",
-        f"| Acceptance rate (< 5% CER) | {percent(summary['baseline_acceptance_rate'])} | {percent(summary['verified_acceptance_rate'])} |",
+        f"| Acceptance rate (< 5% T2S-normalized CER) | {percent(summary['baseline_acceptance_rate'])} | {percent(summary['verified_acceptance_rate'])} |",
         "",
         f"Mean attempts: {decimal(summary['mean_attempts'])}  ",
         f"Mean case time: {decimal(summary['mean_case_seconds'])} seconds",

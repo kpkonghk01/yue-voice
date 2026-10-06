@@ -88,20 +88,20 @@ uv run yue-voice benchmark --text-file sample.txt --artifact-dir artifacts
 - 執行時間：2026-10-06；Python 3.13.12；依賴由此 repo 的 `uv.lock` 鎖定。
 - 模型：`k2-fsa/OmniVoice`、`iic/SenseVoiceSmall`；TTS 與 ASR 都實際使用 `mps`。
 - 指令：`uv run yue-voice benchmark --corpus benchmarks/cantonese.jsonl --seed 20261006 --artifact-dir artifacts`。
-- 語料：24 段；每段最多 10 次；總耗時 406.99 秒（約 6 分 47 秒）。
-- 原始、逐 case 結果位於 Git ignore 的 `artifacts/benchmark-20261006T091334300930Z/report.json` 與 `report.md`。
+- 語料：24 段；每段最多 10 次；總耗時 387.26 秒（約 6 分 27 秒）。
+- 原始、逐 case 結果位於 Git ignore 的 `artifacts/benchmark-20261006T093636483199Z/report.json` 與 `report.md`。
 
 | Metric | 單純生成（第 1 候選） | 校驗生成（最多 10 次） |
 | --- | ---: | ---: |
-| 平均 T2S-normalized CER | 6.82% | **4.28%** |
-| 相對 CER 改善 | — | **37.33%** |
-| `< 5%` 達標率 | 14/24（58.33%） | 17/24（70.83%） |
-| 平均嘗試次數 | 1.00 | 4.04 |
-| 平均每段時間 | — | 16.96 秒 |
+| 平均 T2S-normalized CER | 4.98% | **2.63%** |
+| 相對 CER 改善 | — | **47.17%** |
+| `< 5%` 達標率 | 15/24（62.50%） | 18/24（75.00%） |
+| 平均嘗試次數 | 1.00 | 3.67 |
+| 平均每段時間 | — | 16.14 秒 |
 
-在相同的 24 段、相同的第 1 候選起點下，閉環把平均 CER 降低 2.55 個百分點，並多讓 3 段達到門檻。7 段仍未達標時，輸出會保留為明確標示 `accepted: false` 的 best-effort，不會被偽稱為已校驗成功。
+在相同的 24 段、相同的第 1 候選起點下，閉環把平均 CER 降低 2.35 個百分點，並多讓 3 段達到門檻。6 段仍未達標時，輸出會保留為明確標示 `accepted: false` 的 best-effort，不會被偽稱為已校驗成功。
 
-此輪也將三個英文／數字形式的基準項目改成目標粵語讀法（`8%` → `八 percent`、`6pm` → `6 p m`、`HK$1,280` → `一千二百八`），並和 T2S／emoji 正規化一併提交。因此這組結果是當前已提交語料的基準，不能直接和舊版嚴格字形 CER 的 31.86%／29.00% 相比來歸因。
+這份 report 使用目前已提交的基準語料，包括三個目標粵語讀法調整（`8%` → `八 percent`、`6pm` → `6 p m`、`HK$1,280` → `一千二百八`）。其數據可直接由 README 列出的固定 seed 指令重跑；不要將它與舊版字形嚴格 CER 的數值混合比較。
 
 ## 模型、快取與清理
 

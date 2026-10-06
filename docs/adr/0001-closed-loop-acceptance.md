@@ -11,7 +11,7 @@ SenseVoice frequently emits simplified Chinese and may include emoji components 
 
 ## Decision
 
-For every paragraph, normalize punctuation, whitespace, and emoji components away. Convert only the requested source text from Traditional Chinese to Simplified Chinese with OpenCC `t2s`; leave the SenseVoice transcription in its emitted Han form. Compare the results with character error rate (CER). A candidate is accepted only when its CER is strictly below 5%.
+For every paragraph, normalize punctuation, whitespace, and complete emoji sequences away. Convert only the requested source text from Traditional Chinese to Simplified Chinese with OpenCC `t2s`; leave the SenseVoice transcription in its emitted Han form. Compare the results with character error rate (CER). A candidate is accepted only when its CER is strictly below 5%.
 
 The closed loop makes at most ten attempts. If none is accepted, it selects the lowest-CER candidate as a best-effort output and reports `accepted: false`. Command-line use treats that outcome as a failure unless the caller explicitly allows best effort.
 
